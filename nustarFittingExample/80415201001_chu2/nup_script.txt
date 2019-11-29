@@ -1,0 +1,10 @@
+## Screen out the none Grade 0 events
+nuscreen infile=nu80415201001A06_chu2_S_cl.evt gtiscreen=no evtscreen=yes gtiexpr=NONE gradeexpr=0 statusexpr=NONE outdir=./ hkfile=./nu80415201001A_fpm.hk outfile=nu80415201001A06_chu2_S_cl_grade0.evt
+
+nuscreen infile=nu80415201001B06_chu2_S_cl.evt gtiscreen=no evtscreen=yes gtiexpr=NONE gradeexpr=0 statusexpr=NONE outdir=./ hkfile=./nu80415201001B_fpm.hk outfile=nu80415201001B06_chu2_S_cl_grade0.evt
+
+### For the chosen ds9 created regions make the spectra/responses over the whole time interval
+
+nuproducts indir=./ instrument=FPMA steminputs=nu80415201001 outdir=./ extended=no runmkarf=yes runmkrmf=yes infile=nu80415201001A06_chu2_S_cl_grade0.evt bkgextract=no srcregionfile=./fpma.reg attfile=./nu80415201001_att.fits hkfile=./nu80415201001A_fpm.hk 
+
+nuproducts indir=./ instrument=FPMB steminputs=nu80415201001 outdir=./ extended=no runmkarf=yes runmkrmf=yes infile=nu80415201001B06_chu2_S_cl_grade0.evt bkgextract=no srcregionfile=./fpmb.reg attfile=./nu80415201001_att.fits hkfile=./nu80415201001B_fpm.hk
