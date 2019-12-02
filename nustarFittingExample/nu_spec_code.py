@@ -1,8 +1,5 @@
 '''
-Functions to go in here (I think!?):
-    KC: 06/08/2019, added-
-    ~grppha/minimum count grouping check
-    ~NuSTAR spectral stuff
+The following code is used to read in NuSTAR spectral data and create spectral models.
 '''
 
 import sys
@@ -10,77 +7,6 @@ from os.path import *
 import os
 import numpy as np
 from astropy.io import fits
-
-
-def grppha_min_check(pha_file, group_min=None, print_tries=False):
-    ''' Takes a .pha file, loads in the counts, and checks the bins left over from grouping the bins with a minimum 
-    value.
-    
-    Parameters
-    ----------
-    pha_file : Str
-            String for the .pha file of the spectrum under investigation.
-            
-    group_min : Int
-            The minimum number of counts allowed in a bin. This input is a starting number and the is checked 
-            incrementally.
-            Default: None
-            
-    print_tries : Bool
-            States whether the result of every try of 'group_min' should be displayed (True) or only the final 
-            result (False, default).
-            Default: False
-            
-    Returns
-    -------
-    The minimum bin number that gives zero counts left over at the end, if it exists, else None.
-    Also the grouped counts and starting boundary for the channel is returned.
-    '''
-    
-    if type(group_min)!=int or group_min<=0: 
-        print('The \'group_min\' parameter must be an integer and > 0.')
-        return
-    
-    # grppha groups in counts, not counts s^-1 or anything
-    n = 1
-    hdul = fits.open(pha_file)
-    data = hdul[n].data
-    hdul.close()
-    
-    orig_counts = data['counts']
-    orig_channel = data['channel']
-    total_counts = np.sum(orig_counts)
-    
-    if type(group_min) == int:
-        combin = [1] # just to establish the variable
-        while len(combin) != 0:
-            binned_counts = []
-            binned_channel = []
-            combin = []
-            for c in range(len(orig_counts)):
-                if orig_counts[c] >= group_min and len(combin) == 0:
-                    binned_counts.append(orig_counts[c])
-                    binned_channel.append(orig_channel[c])
-                elif orig_counts[c] > 0:
-                    combin.append(orig_counts[c])
-                    if len(combin) == 1:
-                        binned_channel.append(orig_channel[c])
-                    if np.sum(combin) >= group_min:
-                        binned_counts.append(np.sum(combin))
-                        combin = []
-        
-            if print_tries == True:
-                print('Group min: ', group_min, ' has counts left over: ', len(combin), ' of bins ', combin)
-                
-            if len(combin) != 0:
-                group_min += 1
-            elif group_min >= total_counts:
-                print('The minimum group number being tried is the same as the total number of counts.')
-                return
-            else:
-                print('Group minimum that works is: ', group_min)
-                return group_min, binned_channel, binned_counts
-
 
 def read_xspec_txt(f):
     ''' Takes a the output .txt file from XSPEC and extracts useful information from it.
@@ -161,7 +87,7 @@ def read_pha(file):
             
     Returns
     -------
-    The counts, channel numbers, and the livetime for the observation. 
+    The channel numbers, counts, and the livetime for the observation. 
     '''
 
     hdul = fits.open(file)
@@ -172,7 +98,7 @@ def read_pha(file):
     return data['channel'], data['counts'], header_FOR_LIVETIME['LIVETIME']
 
 
-def nustar_ctsSpec(file):
+def nustar_FluxCtsSpec(file):
     ''' Takes a .pha file and returns plotting innformation.
     
     Parameters
@@ -182,7 +108,8 @@ def nustar_ctsSpec(file):
             
     Returns
     -------
-    The energy is the middle of the energy bin for the counts, the half-range that energy bin spans, count rate per keV and its error. 
+    The energy is the middle of the energy bin for the counts (energy_binMid), the half-range that energy bin spans (energy_binMid_err), 
+    count rate per keV (cts), and its error (cts_err). 
     '''
 
     channel, counts, livetime = read_pha(file)
@@ -191,10 +118,10 @@ def nustar_ctsSpec(file):
     energy_binMid = energy_binStart + 0.02 # add 0.02 to get value in the middle of the energy bin
     energy_binMid_err = 0.02
     
-    ev40_to_kev = 1000/40
-    cts = (counts * ev40_to_kev) / livetime # now in cts keV^-1 s^-1
+    bin_size_keV = 0.04
+    cts = (counts / bin_size_keV) / livetime # now in cts keV^-1 s^-1
     
-    cts_err = (np.sqrt(counts) * ev40_to_kev) / livetime
+    cts_err = (np.sqrt(counts) / bin_size_keV) / livetime
     
     return energy_binMid, energy_binMid_err, cts, cts_err
 
@@ -209,7 +136,7 @@ def read_arf(file):
             
     Returns
     -------
-    The low and high boundary of energy bins, and the ancillary response [cm^2].  
+    The low and high boundary of energy bins, and the ancillary response [cm^2] (data['specresp']).  
     '''
 
     hdul = fits.open(file)
@@ -229,8 +156,9 @@ def read_rmf(file):
             
     Returns
     -------
-    The low and high boundary of energy bins, number of sub-set channels in the energy bin, starting index of each sub-set of channels, 
-    number of channels in each sub-set, redistribution matrix [counts per photon]. 
+    The low and high boundary of energy bins (data['energ_lo'], data['energ_hi']), number of sub-set channels in the energy 
+    bin (data['n_grp']), starting index of each sub-set of channels (data['f_chan']), 
+    number of channels in each sub-set (data['n_chan']), redistribution matrix [counts per photon] (data['matrix']). 
     '''
 
     hdul = fits.open(file)
@@ -242,6 +170,8 @@ def read_rmf(file):
 
 def col2arr_py(data):
     ''' Takes a list of parameters for each energy channel from a .rmf file and returns it in the correct format.
+
+    From: https://lost-contact.mit.edu/afs/physics.wisc.edu/home/craigm/lib/idl/util/vcol2arr.pro
     
     Parameters
     ----------
@@ -296,6 +226,8 @@ def col2arr_py(data):
 
 def vrmf2arr_py(data=None, n_grp_list=None, f_chan_array=None, n_chan_array=None):
     ''' Takes redistribution parameters for each energy channel from a .rmf file and returns it in the correct format.
+
+    From: https://lost-contact.mit.edu/afs/physics.wisc.edu/home/craigm/lib/idl/spectral/vrmf2arr.pro
     
     Parameters
     ----------
@@ -389,8 +321,10 @@ def vrmf2arr_py(data=None, n_grp_list=None, f_chan_array=None, n_chan_array=None
     return mat_array
 
 
-def make_srm(rmf_matrix=(), arf_array=()):
+def make_nusrm(rmf_matrix=(), arf_array=()):
     ''' Takes rmf and arf and produces the spectral response matrix fro NuSTAR.
+
+    From: https://github.com/ianan/nsigh_nov14/blob/master/make_ns_srm.pro
     
     Parameters
     ----------
